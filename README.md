@@ -1,122 +1,52 @@
 # uno-infra-misp
 
-Repositorio destinado a la definición, construcción y automatización de la infraestructura para el despliegue de **MISP (Malware Information Sharing Platform)** en contenedores.
+Repositorio destinado a mantener la configuración y los componentes necesarios para la construcción y despliegue de **MISP (Malware Information Sharing Platform)** mediante contenedores Docker.
 
-## Objetivo
+## Descripción
 
-Definir la infraestructura necesaria para desplegar MISP, evaluando las alternativas disponibles desde el punto de vista técnico y de costos antes de establecer la arquitectura definitiva.
+El repositorio contiene la configuración base para ejecutar MISP mediante **Docker Compose**, incluyendo los Dockerfiles, scripts y variables necesarias para parametrizar el despliegue.
 
-El trabajo contempla:
+## Componentes
 
-1. Evaluar alternativas para el despliegue de MISP en contenedores.
-2. Revisar los costos de operación y cómputo de las alternativas evaluadas.
-3. Definir la arquitectura de despliegue.
-4. Construir la infraestructura mediante **Infraestructura como Código (IaC)**.
-5. Automatizar el despliegue de la plataforma.
+El despliegue contempla los siguientes servicios:
 
-## Alternativas de despliegue
+- **MISP Core:** aplicación principal de MISP y su interfaz web/API.
+- **MISP Modules:** módulos de expansión, enriquecimiento, importación y exportación.
+- **MariaDB:** base de datos utilizada por MISP.
+- **Redis/Valkey:** servicio utilizado para caché y procesamiento interno.
+- **SMTP:** relay de correo utilizado para las funcionalidades de notificación.
 
-La arquitectura definitiva se encuentra **por definir**.
+## Configuración
 
-Inicialmente se consideran para evaluación las siguientes alternativas:
+La configuración de los ambientes se realiza mediante variables de entorno.
 
-### Docker Compose sobre EC2
+El archivo `template.env` contiene la referencia de las variables disponibles para configurar componentes como:
 
-Despliegue de MISP mediante contenedores utilizando **Docker Compose sobre Amazon EC2**.
+- MISP.
+- MariaDB.
+- Redis/Valkey.
+- SMTP.
+- OIDC / Microsoft Entra ID.
+- LDAP.
+- Proxy y S3.
+- Nginx y PHP.
+  
+## Estado actual
 
-### Kubernetes
+La solución fue validada localmente mediante **Docker Compose**, utilizando un clon limpio del repositorio y `template.env` como base para generar la configuración del ambiente.
 
-Despliegue de MISP mediante contenedores sobre un **clúster Kubernetes (K8s)**.
+Se validó correctamente el funcionamiento de:
 
-La selección de la alternativa deberá considerar principalmente los **costos de operación y cómputo**.
+- MISP Core.
+- MISP Modules.
+- MariaDB.
+- Redis/Valkey.
+- Interfaz web de MISP mediante HTTPS.
 
-Como parte de la evaluación técnica también se recomienda considerar aspectos como:
+El componente SMTP se encuentra incluido en el stack y queda pendiente de validación con el relay de correo que sea definido para el ambiente corporativo.
 
-* Complejidad operacional.
-* Mantenibilidad.
-* Disponibilidad.
-* Escalabilidad.
-* Administración y monitoreo de la plataforma.
+## Pendientes
 
-> **Nota:** Estos puntos corresponden a criterios sugeridos para la evaluación y no representan decisiones de arquitectura.
+La infraestructura definitiva y sus parámetros de despliegue se encuentran en proceso de definición.
 
-## Infraestructura como Código
-
-La infraestructura requerida para MISP será construida mediante **Infraestructura como Código (IaC)**.
-
-La herramienta, estructura y componentes específicos se encuentran **por definir**.
-
-Como alternativas técnicas se podrán evaluar herramientas compatibles con la infraestructura seleccionada, por ejemplo:
-
-* **Terraform**.
-* Otras herramientas de IaC disponibles o definidas por los estándares de infraestructura de la organización.
-
-> **Nota:** Las tecnologías mencionadas son alternativas de evaluación y no representan una decisión definitiva.
-
-## Automatización de despliegue
-
-Se contempla automatizar el despliegue de la infraestructura y de MISP.
-
-La herramienta y el flujo de automatización se encuentran **por definir**.
-
-Dependiendo de la arquitectura seleccionada, se podrán evaluar mecanismos de CI/CD y automatización compatibles con las herramientas y estándares utilizados por la organización.
-
-## Estructura del repositorio
-
-La estructura definitiva del repositorio se encuentra **por definir** y dependerá de la arquitectura y tecnologías seleccionadas.
-
-Como referencia, se podrán considerar directorios separados para:
-
-* Infraestructura como Código.
-* Configuración de contenedores.
-* Automatización de despliegue.
-* Documentación técnica.
-
-La estructura será actualizada una vez definida la arquitectura objetivo.
-
-## Seguridad
-
-Los controles y mecanismos específicos de seguridad asociados al despliegue se encuentran **por definir** y deberán alinearse con los estándares de seguridad de la organización.
-
-Como buenas prácticas para el manejo del repositorio se recomienda:
-
-* No almacenar credenciales, contraseñas, API Keys, tokens o certificados privados directamente en el repositorio.
-* Mantener los secretos fuera del control de versiones.
-* Utilizar mecanismos seguros para proporcionar secretos y credenciales durante los procesos de despliegue.
-* Revisar que archivos de configuración locales o sensibles sean excluidos mediante `.gitignore` cuando corresponda.
-* Aplicar el principio de mínimo privilegio a los accesos utilizados por la infraestructura y los procesos de automatización.
-
-> **Nota:** Estas medidas corresponden a buenas prácticas generales. Los controles definitivos deberán definirse de acuerdo con la arquitectura seleccionada y los estándares de seguridad aplicables.
-
-## Estado
-
-**En evaluación y diseño.**
-
-### Confirmado
-
-* MISP será desplegado mediante contenedores.
-* Se evaluarán los costos de operación y cómputo.
-* La infraestructura será construida como código.
-* El despliegue será automatizado.
-
-### Por definir
-
-* Arquitectura definitiva de despliegue.
-* Docker Compose sobre EC2 o Kubernetes.
-* Herramienta de Infraestructura como Código.
-* Recursos de infraestructura requeridos.
-* Herramienta y flujo de automatización del despliegue.
-* Estructura definitiva del repositorio.
-* Configuración de los componentes de MISP.
-* Controles y mecanismos específicos de seguridad.
-
-## Próximos pasos
-
-1. Evaluar los costos de **Docker Compose sobre EC2**.
-2. Evaluar los costos asociados a una alternativa basada en **Kubernetes**.
-3. Comparar las alternativas.
-4. Definir la arquitectura a implementar.
-5. Definir la herramienta de IaC.
-6. Construir la infraestructura como código.
-7. Definir e implementar la automatización del despliegue.
-8. Documentar la arquitectura y configuración definitiva.
+Entre los principales puntos pendientes se encuentran la infraestructura de cómputo, DNS/FQDN, certificados TLS, persistencia y respaldos, conectividad, relay SMTP, gestión de secretos y mecanismo de build/deploy.
