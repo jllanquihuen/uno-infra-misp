@@ -28,13 +28,23 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 log "Repo root: ${REPO_ROOT}"
 
-# podman-compose derives the project name from the directory name (lowercased,
-# sanitized) unless COMPOSE_PROJECT_NAME is set. Container names are then
-# "<project>_<service>_1". We derive it here so health checks target the right
-# container regardless of the checkout directory name.
-PROJECT="${COMPOSE_PROJECT_NAME:-$(basename "${REPO_ROOT}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '_')}"
-log "Compose project: ${PROJECT}"
-cname() { echo "${PROJECT}_$1_1"; }
+# Resolve the actual container name for a given compose service by querying
+# podman for the container carrying the compose service label. This is robust
+# against however podman-compose sanitizes the project name (directory-derived,
+# COMPOSE_PROJECT_NAME, etc.) instead of reconstructing "<project>_<service>_1"
+# ourselves (which was fragile: trailing-char sanitization produced a stray "_").
+cname() {
+    local service="$1" name
+    name="$(podman ps -a \
+        --filter "label=com.docker.compose.service=${service}" \
+        --format '{{.Names}}' 2>/dev/null | head -n1)"
+    if [[ -z "${name}" ]]; then
+        # Fallback: derive from directory name the way podman-compose does.
+        local project="${COMPOSE_PROJECT_NAME:-$(basename "${REPO_ROOT}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')}"
+        name="${project}_${service}_1"
+    fi
+    echo "${name}"
+}
 
 WITH_GUARD=0
 [[ "${1:-}" == "--with-guard" ]] && WITH_GUARD=1
@@ -72,16 +82,31 @@ podman-compose -f docker-compose.yml pull db redis mail misp-modules misp-core |
     warn "Some pulls failed (transient network?). Continuing; up will retry."
 
 # --- Staged startup ---------------------------------------------------------
-log "Starting infrastructure services (db, redis, mail)..."
-podman-compose -f docker-compose.yml up -d --no-recreate db redis mail
+# is_running: true if the container for a compose service exists and is running.
+is_running() {
+    local service="$1" name
+    name="$(cname "${service}")"
+    [[ -n "${name}" ]] && \
+        [[ "$(podman inspect --format '{{.State.Running}}' "${name}" 2>/dev/null)" == "true" ]]
+}
 
-log "Starting misp-modules and waiting for health..."
-podman-compose -f docker-compose.yml up -d --no-recreate misp-modules
+# ensure_up: start a service only if it isn't already running. Idempotent, and
+# avoids podman-compose's "name already in use" errors on re-runs / partial runs.
+ensure_up() {
+    local service="$1"
+    if is_running "${service}"; then
+        log "${service} already running ($(cname "${service}")) - skipping."
+        return 0
+    fi
+    log "Starting ${service}..."
+    podman-compose -f docker-compose.yml up -d --no-recreate "${service}"
+}
+
+# wait_healthy: poll a container's health status until healthy or timeout.
 wait_healthy() {
-    local name="$1" timeout="${2:-180}" elapsed=0
+    local name="$1" timeout="${2:-180}" elapsed=0 status
     log "Waiting for ${name} to become healthy (timeout ${timeout}s)..."
     while [[ ${elapsed} -lt ${timeout} ]]; do
-        local status
         status="$(podman inspect --format '{{.State.Health.Status}}' "${name}" 2>/dev/null || echo 'unknown')"
         if [[ "${status}" == "healthy" ]]; then
             log "${name} is healthy."
@@ -93,14 +118,25 @@ wait_healthy() {
     warn "${name} did not reach healthy within ${timeout}s (status: ${status:-unknown}). Continuing anyway."
     return 1
 }
+
+log "Starting infrastructure services (db, redis, mail)..."
+ensure_up db
+ensure_up redis
+ensure_up mail
+
+log "Starting misp-modules and waiting for health..."
+ensure_up misp-modules
 wait_healthy "$(cname misp-modules)" 180 || true
 
-log "Starting misp-core..."
-podman-compose -f docker-compose.yml up -d --no-recreate misp-core
+ensure_up misp-core
 
 if [[ "${WITH_GUARD}" -eq 1 ]]; then
-    log "Starting misp-guard (optional)..."
-    COMPOSE_PROFILES=misp-guard podman-compose -f docker-compose.yml up -d --no-recreate misp-guard
+    if is_running misp-guard; then
+        log "misp-guard already running ($(cname misp-guard)) - skipping."
+    else
+        log "Starting misp-guard (optional)..."
+        COMPOSE_PROFILES=misp-guard podman-compose -f docker-compose.yml up -d --no-recreate misp-guard
+    fi
 fi
 
 # --- Status -----------------------------------------------------------------
