@@ -1,0 +1,45 @@
+# misp.service - systemd unit that makes systemd the supervisor of the MISP stack.
+#
+# This is the answer to "should I run a daemon watching the compose?": NO.
+# systemd IS that supervisor. Combined with `restart: always` on each container
+# (already in docker-compose.yml), this covers:
+#   - container crash        -> podman restarts it (restart: always)
+#   - VM reboot              -> systemd starts the stack (this unit + linger)
+#   - stack process dies     -> systemd restarts it (Restart=on-failure)
+# No external watchdog needed.
+#
+# INSTALL (rootless, as the stack user):
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/podman/misp.service ~/.config/systemd/user/misp.service
+#   # edit WorkingDirectory below to your repo path, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now misp.service
+#
+# Requires `loginctl enable-linger <user>` (done by provision.sh) so it runs at boot.
+#
+# For a ROOTFUL install instead, place in /etc/systemd/system/ and use
+# `systemctl enable --now misp.service` (drop the --user).
+
+[Unit]
+Description=MISP stack (Podman Compose)
+Wants=network-online.target
+After=network-online.target
+# If you run a rootful setup on the docker/podman socket, add its ordering here.
+
+[Service]
+Type=simple
+# EDIT THIS to the absolute path of your uno-infra-misp checkout on the VM:
+WorkingDirectory=%h/uno-infra-misp
+
+# Bring the stack up via the deploy script (handles staged startup + health waits).
+# ExecStart stays in the foreground by tailing compose so systemd tracks liveness.
+ExecStartPre=/usr/bin/env bash %h/uno-infra-misp/deploy/podman/deploy.sh
+ExecStart=/usr/bin/podman-compose -f %h/uno-infra-misp/docker-compose.yml logs -f
+ExecStop=/usr/bin/podman-compose -f %h/uno-infra-misp/docker-compose.yml down
+
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
