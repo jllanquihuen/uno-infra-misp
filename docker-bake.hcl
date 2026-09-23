@@ -94,6 +94,12 @@ variable "GUARD_COMMIT" {
   default = ""
 }
 
+# Corporate root CA (base64-encoded PEM) for networks with TLS inspection.
+# Empty by default (no-op). Set the CUSTOM_CA_B64 env var to inject it at build time.
+variable "CUSTOM_CA_B64" {
+  default = ""
+}
+
 group "default" {
   targets = [
     "misp-modules",
@@ -128,6 +134,7 @@ target "misp-modules" {
     "MODULES_COMMIT": "${MODULES_COMMIT}",
     "MODULES_FLAVOR": "standard",
     "DOCKER_HUB_PROXY" : "${DOCKER_HUB_PROXY}",
+    "CUSTOM_CA_B64": "${CUSTOM_CA_B64}",
   }
   platforms = "${PLATFORMS}"
 }
@@ -140,6 +147,7 @@ target "misp-modules-slim" {
     "MODULES_COMMIT": "${MODULES_COMMIT}",
     "MODULES_FLAVOR": "slim",
     "DOCKER_HUB_PROXY" : "${DOCKER_HUB_PROXY}",
+    "CUSTOM_CA_B64": "${CUSTOM_CA_B64}",
   }
   platforms = "${PLATFORMS}"
 }
@@ -152,6 +160,7 @@ target "misp-core" {
     "CORE_TAG": "${CORE_TAG}",
     "CORE_COMMIT": "${CORE_COMMIT}",
     "CORE_FLAVOR": "standard",
+    "CUSTOM_CA_B64": "${CUSTOM_CA_B64}",
     "PHP_API_VERSION": "${PHP_API_VERSION}",
     "PHP_PACKAGE_VERSION": "${PHP_PACKAGE_VERSION}",
     "PYPI_SETUPTOOLS_VERSION": "${PYPI_SETUPTOOLS_VERSION}",
@@ -178,6 +187,7 @@ target "misp-core-slim" {
     "CORE_TAG": "${CORE_TAG}",
     "CORE_COMMIT": "${CORE_COMMIT}",
     "CORE_FLAVOR": "slim",
+    "CUSTOM_CA_B64": "${CUSTOM_CA_B64}",
     "PHP_API_VERSION": "${PHP_API_VERSION}",
     "PHP_PACKAGE_VERSION": "${PHP_PACKAGE_VERSION}",
     "PYPI_SETUPTOOLS_VERSION": "${PYPI_SETUPTOOLS_VERSION}",
@@ -205,6 +215,7 @@ target "misp-guard" {
     "GUARD_TAG": "${GUARD_TAG}",
     "GUARD_COMMIT": "${GUARD_COMMIT}",
     "DOCKER_HUB_PROXY" : "${DOCKER_HUB_PROXY}",
+    "CUSTOM_CA_B64": "${CUSTOM_CA_B64}",
   }
   platforms = "${PLATFORMS}"
 }

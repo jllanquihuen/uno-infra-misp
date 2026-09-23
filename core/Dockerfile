@@ -11,9 +11,27 @@ ARG PHP_PACKAGE_VERSION
 RUN : "${PHP_PACKAGE_VERSION:?Build argument PHP_PACKAGE_VERSION is required and cannot be empty.}"
 ARG CORE_FLAVOR
 
-# Uncomment when building in corporate environments
-# COPY ./cert.pem /usr/local/share/ca-certificates/rootca.pem
-# COPY ./cert.pem /usr/lib/ssl/cert.pem
+# Make apt resilient to transient network failures (e.g. corporate proxies /
+# captive portals that intermittently drop connections to the Debian mirrors).
+RUN printf 'Acquire::Retries "5";\nAcquire::Retries::Delay "10";\n' > /etc/apt/apt.conf.d/80-retries
+
+# Corporate CA injection (for networks that perform TLS inspection).
+# Pass the root CA as a base64-encoded PEM via the CUSTOM_CA_B64 build arg:
+#   docker build --build-arg CUSTOM_CA_B64="$(base64 -w0 corp-ca.pem)" ...
+# When empty (the default) this is a no-op, so builds without a CA are unaffected.
+ARG CUSTOM_CA_B64=""
+RUN <<-EOF
+        if [ -n "${CUSTOM_CA_B64}" ]; then
+            echo "... installing corporate root CA"
+            echo "${CUSTOM_CA_B64}" | base64 -d > /usr/local/share/ca-certificates/corp-root-ca.crt
+            update-ca-certificates
+            # Also point OpenSSL's default bundle at the system store so PHP/Python
+            # tooling that reads /usr/lib/ssl/cert.pem trusts the corporate CA.
+            ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/ssl/cert.pem
+        else
+            echo "... no corporate CA provided (CUSTOM_CA_B64 empty), skipping"
+        fi
+EOF
 
 RUN <<-EOF
         apt-get update

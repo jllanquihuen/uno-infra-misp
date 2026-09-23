@@ -4,6 +4,20 @@ FROM "${DOCKER_HUB_PROXY}python:3.12-slim-trixie" AS python-build
     ENV DEBIAN_FRONTEND=noninteractive
     ARG GUARD_TAG
     ARG GUARD_COMMIT
+    ARG CUSTOM_CA_B64=""
+
+    # Make apt resilient to transient network failures (corporate proxies / captive portals).
+    RUN printf 'Acquire::Retries "5";\nAcquire::Retries::Delay "10";\n' > /etc/apt/apt.conf.d/80-retries
+
+    # Corporate CA injection (TLS-inspecting networks). base64-encoded PEM via CUSTOM_CA_B64, no-op when empty.
+    RUN <<-EOF
+        if [ -n "${CUSTOM_CA_B64}" ]; then
+            echo "... installing corporate root CA"
+            echo "${CUSTOM_CA_B64}" | base64 -d > /usr/local/share/ca-certificates/corp-root-ca.crt
+            update-ca-certificates
+            ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/ssl/cert.pem
+        fi
+EOF
 
     RUN <<-EOF
         apt-get update
@@ -30,6 +44,20 @@ EOF
 
 FROM "${DOCKER_HUB_PROXY}python:3.12-slim-trixie"
     ENV DEBIAN_FRONTEND=noninteractive
+    ARG CUSTOM_CA_B64=""
+
+    # Make apt resilient to transient network failures (corporate proxies / captive portals).
+    RUN printf 'Acquire::Retries "5";\nAcquire::Retries::Delay "10";\n' > /etc/apt/apt.conf.d/80-retries
+
+    # Corporate CA injection for runtime HTTPS. base64-encoded PEM via CUSTOM_CA_B64, no-op when empty.
+    RUN <<-EOF
+        if [ -n "${CUSTOM_CA_B64}" ]; then
+            echo "... installing corporate root CA"
+            echo "${CUSTOM_CA_B64}" | base64 -d > /usr/local/share/ca-certificates/corp-root-ca.crt
+            update-ca-certificates
+            ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/ssl/cert.pem
+        fi
+EOF
 
     RUN <<-EOF
         apt-get update

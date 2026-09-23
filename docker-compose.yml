@@ -98,6 +98,7 @@ services:
         - CORE_TAG=${CORE_TAG:?Missing or outdated .env file, see README.md for instructions}
         - CORE_COMMIT=${CORE_COMMIT}
         - CORE_FLAVOR=${CORE_FLAVOR:-standard}
+        - CUSTOM_CA_B64=${CUSTOM_CA_B64}
         - PHP_API_VERSION=${PHP_API_VERSION:-20240924}
         - PHP_PACKAGE_VERSION=${PHP_PACKAGE_VERSION:-8.4}
         - PYPI_SETUPTOOLS_VERSION=${PYPI_SETUPTOOLS_VERSION:-==80.3.1}
@@ -350,6 +351,7 @@ services:
         - MODULES_TAG=${MODULES_TAG:?Missing or outdated .env file, see README.md for instructions}
         - MODULES_COMMIT=${MODULES_COMMIT}
         - MODULES_FLAVOR=${MODULES_FLAVOR:-standard}
+        - CUSTOM_CA_B64=${CUSTOM_CA_B64}
     healthcheck:
       test: "/bin/bash -c '</dev/tcp/localhost/6666'"
       interval: 2s
@@ -376,6 +378,7 @@ services:
       args:
         - GUARD_TAG=${GUARD_TAG:?Missing or outdated .env file, see README.md for instructions}
         - GUARD_COMMIT=${GUARD_COMMIT}
+        - CUSTOM_CA_B64=${CUSTOM_CA_B64}
     depends_on:
       - misp-core
     ports:

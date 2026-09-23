@@ -9,9 +9,20 @@ ARG MODULES_TAG
 ARG MODULES_COMMIT
 ARG MODULES_FLAVOR
 
-# Uncomment when building in corporate environments
-# COPY ./cert.pem /usr/local/share/ca-certificates/rootca.pem
-# COPY ./cert.pem /usr/lib/ssl/cert.pem
+# Make apt resilient to transient network failures (corporate proxies / captive portals).
+RUN printf 'Acquire::Retries "5";\nAcquire::Retries::Delay "10";\n' > /etc/apt/apt.conf.d/80-retries
+
+# Corporate CA injection (TLS-inspecting networks). Pass base64-encoded PEM via CUSTOM_CA_B64.
+# No-op when empty, so builds without a CA are unaffected.
+ARG CUSTOM_CA_B64=""
+RUN <<-EOF
+        if [ -n "${CUSTOM_CA_B64}" ]; then
+            echo "... installing corporate root CA"
+            echo "${CUSTOM_CA_B64}" | base64 -d > /usr/local/share/ca-certificates/corp-root-ca.crt
+            update-ca-certificates
+            ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/ssl/cert.pem
+        fi
+EOF
 
 RUN <<-EOF
         apt-get update
@@ -61,6 +72,21 @@ ENV DEBIAN_FRONTEND=noninteractive
 ARG MODULES_FLAVOR
 ARG MISP_UID
 ARG MISP_GID
+
+# Make apt resilient to transient network failures (corporate proxies / captive portals).
+RUN printf 'Acquire::Retries "5";\nAcquire::Retries::Delay "10";\n' > /etc/apt/apt.conf.d/80-retries
+
+# Corporate CA injection for runtime HTTPS calls (enrichment services, feeds).
+# Pass base64-encoded PEM via CUSTOM_CA_B64. No-op when empty.
+ARG CUSTOM_CA_B64=""
+RUN <<-EOF
+        if [ -n "${CUSTOM_CA_B64}" ]; then
+            echo "... installing corporate root CA"
+            echo "${CUSTOM_CA_B64}" | base64 -d > /usr/local/share/ca-certificates/corp-root-ca.crt
+            update-ca-certificates
+            ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/ssl/cert.pem
+        fi
+EOF
 
 RUN <<-EOF
         apt-get update
