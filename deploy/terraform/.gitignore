@@ -23,3 +23,5 @@ override.tf.json
 .terraformrc
 terraform.rc
 *.tfplan
+tfplan
+tfplan.*
