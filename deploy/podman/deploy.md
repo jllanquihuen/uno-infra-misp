@@ -14,7 +14,6 @@ los contenedores, la red de Podman y los volúmenes. La infraestructura AWS de a
 |---|---|---|
 | Contenedores, red Podman, volúmenes, arranque systemd | **`provision.sh` + `deploy.sh`** | Construido y probado |
 | EC2, ALB, ACM, ECR, Secrets Manager, S3, NAT, Route 53 | Terraform / consola AWS | Por crear |
-| Build de imágenes en la nube | CodeBuild (`buildspec.yml`) | Por crear |
 
 ---
 
@@ -147,8 +146,6 @@ flowchart TB
     EC2 -->|salida feeds| NAT
     EC2 -->|"lee secretos (secrets-bootstrap.sh)"| SM
     EC2 -->|"backup.sh (dump+files)"| S3
-    CB["CodeBuild (buildspec)<br/>build en la nube · evita bloqueo Meraki"] -->|push imagen| ECR
-    GH["GitHub unoafp/uno-infra-misp"] -->|dispara| CB
 ```
 
 ### Versión ASCII (equivalente)
@@ -181,13 +178,8 @@ flowchart TB
 │   │     ECR      │   │  NAT Gateway │   │ Secrets Manager  │   │   S3    ││
 │   │ (imágenes)   │   │ (salida:     │   │ (DB/Redis/GPG/   │   │(backups ││
 │   │              │   │  feeds MISP) │   │  SMTP secrets)   │   │ mariadb)││
-│   └──────▲───────┘   └──────────────┘   └──────────────────┘   └─────────┘│
-│          │ push imagen                                                     │
-└──────────┼─────────────────────────────────────────────────────────────────┘
-   ┌────────────────┐
-   │   CodeBuild     │  ◄─ build en la nube (evita el bloqueo Meraki)
-   │  (buildspec)    │      dispara desde GitHub (unoafp/uno-infra-misp)
-   └────────────────┘
+│   └──────────────┘   └──────────────┘   └──────────────────┘   └─────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -206,7 +198,8 @@ Estado de las definiciones para el ambiente AWS de unoafp:
 | **IAM** | Acotable a repos ECR y secretos `prod/misp/*` (ver `terraform.tfvars.example`) | Implementado |
 | **DNS / FQDN** | Nombre real por definir; apuntar Route 53 al DNS del ALB | Pendiente (definición) |
 | **Relay SMTP** | SES o relay corporativo (`SES_*` / `SMARTHOST_*` en `.env`) | Pendiente (definición) |
-| **Build / deploy** | ECR + CodeBuild + `deploy.sh`/systemd; disparo manual → luego SSM Run Command | Propuesto |
+| **Imágenes** | Oficiales fijas (GHCR) por defecto; build propio opcional con los Dockerfiles del repo | Definido |
+| **Deploy** | `deploy.sh` + systemd en la VM; disparo manual (opcional SSM Run Command) | Implementado |
 
 ### Notas sobre las decisiones
 
@@ -219,10 +212,10 @@ Estado de las definiciones para el ambiente AWS de unoafp:
 - **Secretos:** los valores sensibles (passwords DB/Redis, `GPG_PASSPHRASE`, credenciales
   SMTP) se almacenan en Secrets Manager; al arrancar, la VM (con su IAM role) los lee y
   genera el `.env`. Nunca en claro en el repositorio ni en la imagen.
-- **Build/deploy:** CodeBuild construye las imágenes en la red de AWS, lo que elimina el
-  bloqueo intermitente del firewall Meraki observado en los builds locales. Las imágenes se
-  publican en ECR y la EC2 hace `pull` por red interna. El deploy a la VM usa el
-  `deploy.sh` + `systemd` de este directorio; se dispara manualmente al inicio y puede
+- **Imágenes/deploy:** por defecto se usan las imágenes oficiales fijas de MISP (GHCR) vía los
+  `*_RUNNING_TAG` del `.env`; opcionalmente se puede construir una imagen propia con los
+  Dockerfiles del repo y publicarla (p. ej. en ECR) para que la EC2 haga `pull`. El deploy a la
+  VM usa `deploy.sh` + `systemd` de este directorio; se dispara manualmente y puede
   automatizarse con SSM Run Command sin necesidad de un pipeline completo.
 
 ---

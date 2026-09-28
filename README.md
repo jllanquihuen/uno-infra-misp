@@ -182,10 +182,10 @@ Decisiones tomadas para el ambiente AWS de unoafp:
 | **IAM** | Acotable a repos ECR y secretos concretos (`prod/misp/*`) | Implementado |
 | **DNS / FQDN** | Nombre real por definir; apuntar Route 53 al DNS del ALB | Pendiente (definición) |
 | **Relay SMTP** | SES o relay corporativo (variables `SES_*` / `SMARTHOST_*`) | Pendiente (definición) |
-| **Build / deploy** | ECR + CodeBuild + `deploy.sh`/systemd | Propuesto |
+| **Imágenes** | Imágenes oficiales fijas (GHCR) por defecto; build propio opcional con los Dockerfiles del repo | Definido |
+| **Deploy** | `deploy.sh` + systemd en la VM (disparo manual, opcional SSM Run Command) | Implementado |
 
 ## Pendientes
 
-- **`buildspec.yml` de CodeBuild** — construir la imagen de `misp-core` en la nube (elimina el bloqueo de red intermitente de los builds locales) y publicarla en ECR. Es la única pieza de automatización que falta construir.
 - **Definiciones de negocio** — FQDN/DNS definitivo, elección de relay SMTP (SES vs corporativo), y los valores concretos (ARN del certificado ACM, nombre del secreto en Secrets Manager, bucket de backups) para poblar el `terraform.tfvars` y el `.env`.
 - **Mejora futura (no bloqueante)** — migrar `misp.service` a unidades systemd generadas por Podman/Quadlet (una por servicio) para que systemd supervise cada contenedor en vez del proceso de logs.
