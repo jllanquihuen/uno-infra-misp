@@ -12,31 +12,75 @@ set -euxo pipefail
 
 REPO_URL="${repo_url}"
 REPO_BRANCH="${repo_branch}"
-DATA_DEVICE_HINT="${data_device_hint}"
+DATA_VOLUME_ENABLED="${data_volume_enabled}"
+DATA_VOLUME_ID="${data_volume_id}"
 CLONE_DIR="/opt/misp/uno-infra-misp"
 
 # --- Base packages ----------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y --no-install-recommends git ca-certificates curl unzip
+apt-get install -y --no-install-recommends git ca-certificates curl unzip nvme-cli
+
+mkdir -p /opt/misp/data
 
 # --- Optional: mount the separate data volume at /opt/misp/data -------------
-# The data volume (if created) shows up as an NVMe device. We format it once
-# (only if it has no filesystem) and mount it persistently.
-if [ -n "$${DATA_DEVICE_HINT}" ] && [ -b "$${DATA_DEVICE_HINT}" ]; then
-  if ! blkid "$${DATA_DEVICE_HINT}"; then
-    mkfs.ext4 -m 0 "$${DATA_DEVICE_HINT}"
-  fi
-  mkdir -p /opt/misp/data
-  if ! grep -q "/opt/misp/data" /etc/fstab; then
-    echo "$${DATA_DEVICE_HINT} /opt/misp/data ext4 defaults,nofail 0 2" >> /etc/fstab
-  fi
-  mount -a || true
-fi
+# On EC2 Nitro, EBS volumes surface as NVMe devices whose enumeration order is
+# NOT tied to the Terraform device_name (e.g. /dev/xvdf), so we must NOT assume a
+# fixed name like /dev/nvme1n1. We locate the data volume robustly:
+#   1) Prefer the NVMe device whose serial matches the attached EBS volume-id
+#      (nvme id-ctrl exposes the vol-xxxx serial). This is unambiguous.
+#   2) Fallback: the single whole disk that has NO partitions and NO filesystem
+#      and is NOT the root disk (a freshly attached, unformatted data volume).
+# Mounting is done by filesystem UUID in fstab, which is stable across reboots
+# regardless of the NVMe device name.
+if [ "$${DATA_VOLUME_ENABLED}" = "1" ]; then
+  DATA_DEV=""
 
-# Always ensure the data directory exists (even if no separate volume: it will
-# then live on the root disk, but the path stays consistent for the deploy).
-mkdir -p /opt/misp/data
+  # Root device (to exclude it from candidates).
+  ROOT_SRC="$(findmnt -no SOURCE / || true)"
+  ROOT_DISK="$(lsblk -no PKNAME "$${ROOT_SRC}" 2>/dev/null || true)"
+  [ -n "$${ROOT_DISK}" ] && ROOT_DISK="/dev/$${ROOT_DISK}"
+
+  # 1) Match by EBS volume-id via NVMe serial (strip dashes; EBS serial is volXXXX).
+  if command -v nvme >/dev/null 2>&1 && [ -n "$${DATA_VOLUME_ID}" ]; then
+    want="$(printf '%s' "$${DATA_VOLUME_ID}" | tr -d '-')"   # vol-0abc -> vol0abc
+    for dev in /dev/nvme*n1; do
+      [ -b "$${dev}" ] || continue
+      serial="$(nvme id-ctrl -o json "$${dev}" 2>/dev/null | grep -o '"sn"[^,]*' | tr -cd 'a-zA-Z0-9')"
+      case "$${serial}" in
+        *"$${want}"*) DATA_DEV="$${dev}"; break ;;
+      esac
+    done
+  fi
+
+  # 2) Fallback: whole disk, no partitions, no filesystem, not the root disk.
+  if [ -z "$${DATA_DEV}" ]; then
+    while read -r name type; do
+      [ "$${type}" = "disk" ] || continue
+      dev="/dev/$${name}"
+      [ "$${dev}" = "$${ROOT_DISK}" ] && continue
+      # skip disks that already have children (partitions)
+      [ -n "$(lsblk -no NAME "$${dev}" | tail -n +2)" ] && continue
+      # skip disks that already have a filesystem
+      [ -n "$(blkid -o value -s TYPE "$${dev}" 2>/dev/null)" ] && continue
+      DATA_DEV="$${dev}"; break
+    done < <(lsblk -dno NAME,TYPE)
+  fi
+
+  if [ -n "$${DATA_DEV}" ]; then
+    # Format only if it has no filesystem yet (idempotent across reboots).
+    if [ -z "$(blkid -o value -s TYPE "$${DATA_DEV}" 2>/dev/null)" ]; then
+      mkfs.ext4 -m 0 "$${DATA_DEV}"
+    fi
+    UUID="$(blkid -o value -s UUID "$${DATA_DEV}")"
+    if [ -n "$${UUID}" ] && ! grep -q "$${UUID}" /etc/fstab; then
+      echo "UUID=$${UUID} /opt/misp/data ext4 defaults,nofail 0 2" >> /etc/fstab
+    fi
+    mount -a || true
+  else
+    echo "WARN: data volume enabled but no candidate NVMe device found; data will live on root disk." >&2
+  fi
+fi
 
 # --- Clone the repo so provision.sh/deploy.sh are available -----------------
 mkdir -p /opt/misp

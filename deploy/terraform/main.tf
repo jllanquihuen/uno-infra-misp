@@ -1,11 +1,10 @@
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
 
-  # Separate data volume attaches at this device; user-data formats/mounts it.
-  data_device_name = "/dev/xvdf"
-  # On Nitro instances the block device surfaces as an NVMe path; user-data
-  # checks for a block device before formatting so this hint is best-effort.
-  data_device_hint = var.data_volume_size_gb > 0 ? "/dev/nvme1n1" : ""
+  # Requested attach point. On Nitro the kernel may expose it under a different
+  # NVMe name; user-data discovers the real device by EBS volume-id (NVMe serial)
+  # and mounts by filesystem UUID, so this name is only the requested hint to AWS.
+  data_device_name = "/dev/sdf"
 
   # Security group of the ALB allowed to reach the instance on 443:
   # the one this module creates (enable_alb) takes precedence, otherwise an
@@ -209,9 +208,10 @@ resource "aws_instance" "misp" {
   }
 
   user_data = templatefile("${path.module}/user-data.sh.tpl", {
-    repo_url         = var.repo_url
-    repo_branch      = var.repo_branch
-    data_device_hint = local.data_device_hint
+    repo_url            = var.repo_url
+    repo_branch         = var.repo_branch
+    data_volume_enabled = var.data_volume_size_gb > 0 ? "1" : "0"
+    data_volume_id      = var.data_volume_size_gb > 0 ? aws_ebs_volume.data[0].id : ""
   })
 
   tags = {
@@ -222,10 +222,17 @@ resource "aws_instance" "misp" {
 # -----------------------------------------------------------------------------
 # Optional separate data volume for MISP persistent data
 # -----------------------------------------------------------------------------
+# AZ comes from the subnet (not the instance) so the volume does not depend on
+# the instance - this lets us pass the volume-id into the instance user-data
+# without creating a dependency cycle.
+data "aws_subnet" "selected" {
+  id = var.subnet_id
+}
+
 resource "aws_ebs_volume" "data" {
   count = var.data_volume_size_gb > 0 ? 1 : 0
 
-  availability_zone = aws_instance.misp.availability_zone
+  availability_zone = data.aws_subnet.selected.availability_zone
   size              = var.data_volume_size_gb
   type              = "gp3"
   encrypted         = true
