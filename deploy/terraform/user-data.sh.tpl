@@ -19,7 +19,27 @@ CLONE_DIR="/opt/misp/uno-infra-misp"
 # --- Base packages ----------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y --no-install-recommends git ca-certificates curl unzip nvme-cli
+apt-get install -y --no-install-recommends git ca-certificates curl unzip nvme-cli jq
+
+# --- AWS CLI v2 -------------------------------------------------------------
+# Needed on the instance itself for secrets-bootstrap.sh (Secrets Manager) and
+# backup.sh (S3), using the instance IAM role. Installed from the official bundle.
+if ! command -v aws >/dev/null 2>&1; then
+  ARCH="$(uname -m)"
+  case "$${ARCH}" in
+    x86_64)  AWSCLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" ;;
+    aarch64) AWSCLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" ;;
+    *)       AWSCLI_URL="" ;;
+  esac
+  if [ -n "$${AWSCLI_URL}" ]; then
+    tmpd="$(mktemp -d)"
+    curl -fsSL "$${AWSCLI_URL}" -o "$${tmpd}/awscliv2.zip" \
+      && unzip -q "$${tmpd}/awscliv2.zip" -d "$${tmpd}" \
+      && "$${tmpd}/aws/install" \
+      || echo "WARN: AWS CLI install failed; install manually if secrets/backups are needed." >&2
+    rm -rf "$${tmpd}"
+  fi
+fi
 
 # --- Time sync (NTP) --------------------------------------------------------
 # ANCI recommends keeping the clock/timezone in sync so logs and scheduled tasks

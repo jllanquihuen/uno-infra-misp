@@ -94,6 +94,39 @@ deploy/
 
 La arquitectura completa, con diagramas del alcance de `deploy.sh` y del contexto AWS, está en [`deploy/podman/deploy.md`](deploy/podman/deploy.md).
 
+## Aprovisionamiento de la VM: qué viene instalado y con qué permisos
+
+La instancia se aprovisiona automáticamente (Terraform → `user-data` → `provision.sh`), sin
+pasos manuales de instalación. Al terminar el arranque, la VM cuenta con:
+
+**Software instalado**
+
+| Componente | Quién lo instala | Notas |
+|---|---|---|
+| **Runtime de contenedores** | `provision.sh` | **Podman rootless + podman-compose**. Corre el mismo `docker-compose.yml`; sin daemon root (menor superficie de ataque). Ver nota Docker abajo. |
+| **AWS CLI v2** | `user-data` | Para leer Secrets Manager y subir backups a S3 desde la propia VM. |
+| **jq** | `user-data` | Parseo del secreto JSON en `secrets-bootstrap.sh`. |
+| **git, curl, unzip, ca-certificates** | `user-data` | Clonado del repo y utilidades base. |
+| **nvme-cli** | `user-data` | Detección robusta del volumen de datos EBS. |
+| **NTP (`systemd-timesyncd`)** | `user-data` | Sincronización horaria (guía ANCI). |
+
+**Permisos AWS (IAM role adjunto a la instancia, sin credenciales en disco)**
+
+| Servicio | Acciones | Para qué |
+|---|---|---|
+| **Secrets Manager** | `GetSecretValue`, `DescribeSecret` | Hidratar el `.env` con `secrets-bootstrap.sh` (DB/Redis/GPG/SMTP…). |
+| **S3** | lectura/escritura del bucket de backups | `backup.sh` sube dumps + archivos. |
+| **ECR** | pull de imágenes | Descargar la imagen de `misp-core`/`modules` (cuando se use ECR). |
+| **SSM** | Session Manager | Acceso a la VM sin exponer SSH. |
+
+Los permisos de ECR y Secrets Manager son **acotables** a recursos concretos (repos y
+`prod/misp/*`) en producción; ver `deploy/terraform/terraform.tfvars.example`.
+
+> **Nota sobre Docker:** por seguridad, la solución usa **Podman rootless** en lugar de Docker
+> (equivalente funcional para este stack, sin daemon privilegiado). Si por política se requiere
+> **Docker específicamente**, el mismo `docker-compose.yml` es compatible y puede adaptarse el
+> aprovisionamiento; es un punto a confirmar con el equipo.
+
 ## Dimensionamiento de la instancia
 
 El tamaño se elige según el patrón de uso, no según el tráfico web: en MISP el consumo de
