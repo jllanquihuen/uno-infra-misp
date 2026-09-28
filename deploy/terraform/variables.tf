@@ -96,6 +96,45 @@ variable "enable_http" {
 }
 
 # -----------------------------------------------------------------------------
+# ALB + TLS (production pattern): users -> Route53 -> ALB (ACM) -> EC2
+# -----------------------------------------------------------------------------
+variable "enable_alb" {
+  description = "Create an Application Load Balancer that terminates TLS with ACM and forwards to MISP. When true, the instance SG accepts 443 only from the ALB SG (not from CIDRs)."
+  type        = bool
+  default     = false
+}
+
+variable "acm_certificate_arn" {
+  description = "ARN of the ACM certificate for the ALB HTTPS listener (required when enable_alb = true)."
+  type        = string
+  default     = ""
+}
+
+variable "alb_subnet_ids" {
+  description = "At least two subnets (in different AZs) for the ALB. Required when enable_alb = true. Use public subnets for an internet-facing ALB."
+  type        = list(string)
+  default     = []
+}
+
+variable "alb_internal" {
+  description = "Whether the ALB is internal (true) or internet-facing (false)."
+  type        = bool
+  default     = false
+}
+
+variable "alb_ingress_cidrs" {
+  description = "CIDR blocks allowed to reach the ALB on 443 (e.g. corporate/VPN ranges)."
+  type        = list(string)
+  default     = []
+}
+
+variable "alb_security_group_id" {
+  description = "Optional: reference an EXISTING ALB security group allowed to reach the instance on 443 (instead of letting this module create the ALB). Leave empty to not use it."
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
 # IAM: ECR pull + Secrets Manager read scoping
 # -----------------------------------------------------------------------------
 variable "ecr_repository_arns" {

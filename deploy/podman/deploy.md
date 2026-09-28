@@ -38,11 +38,11 @@ flowchart TB
             GUARD["misp-guard v1.2<br/>(opcional, --with-guard)"]
         end
 
-        subgraph VOL["Persistencia creada por deploy.sh"]
-            V1["volumen mysql_data"]
-            V2["volumen cache_data"]
-            V3["volumen misp_guard_ca"]
-            BM["bind-mounts: configs/ logs/ files/ ssl/ gnupg/"]
+        subgraph VOL["Persistencia bajo MISP_DATA_DIR (EBS: /opt/misp/data)"]
+            V1["mysql/ (MariaDB)"]
+            V2["redis/ (Valkey)"]
+            BM["configs/ files/ gnupg/ logs/ ssl/"]
+            V3["misp_guard_ca (interno, efímero)"]
         end
     end
 
@@ -133,18 +133,20 @@ flowchart TB
     subgraph VPC["VPC unoafp"]
         subgraph PRIV["Subnet privada"]
             EC2["EC2 Ubuntu 24.04<br/>lo que crea deploy.sh<br/>(Diagrama 1)<br/>IAM role: pull ECR + read Secrets"]
+            EBS["EBS datos<br/>/opt/misp/data"]
         end
         ECR["ECR<br/>(imágenes)"]
         NAT["NAT Gateway<br/>(salida: feeds MISP)"]
         SM["Secrets Manager<br/>(DB/Redis/GPG/SMTP)"]
-        S3["S3<br/>(backups mariadb-dump)"]
+        S3["S3<br/>(backups + snapshots)"]
     end
 
-    ALB -->|HTTP interno| EC2
+    ALB -->|"HTTPS 443 (SG->SG)"| EC2
+    EC2 --- EBS
     EC2 -->|pull imágenes| ECR
     EC2 -->|salida feeds| NAT
-    EC2 -->|lee secretos| SM
-    EC2 -->|backups| S3
+    EC2 -->|"lee secretos (secrets-bootstrap.sh)"| SM
+    EC2 -->|"backup.sh (dump+files)"| S3
     CB["CodeBuild (buildspec)<br/>build en la nube · evita bloqueo Meraki"] -->|push imagen| ECR
     GH["GitHub unoafp/uno-infra-misp"] -->|dispara| CB
 ```
@@ -196,13 +198,14 @@ Estado de las definiciones para el ambiente AWS de unoafp:
 
 | Pendiente | Decisión | Estado |
 |---|---|---|
-| **Cómputo** | EC2 Ubuntu 24.04 (misma versión validada en WSL) | Definido |
-| **DNS / FQDN** | Nombre real por definir; `BASE_URL` parametrizable en `.env` (no bloquea) | Pendiente |
-| **TLS** | ALB + ACM (TLS gestionado, renovación automática, sin autofirmados) | Propuesto |
-| **Persistencia / respaldos** | Volúmenes en EBS + `mariadb-dump` diario a S3 | Propuesto |
-| **Conectividad** | Entrada vía ALB; salida por NAT Gateway (feeds); pull de ECR interno | Propuesto |
-| **Relay SMTP** | SES o relay corporativo (a confirmar). Variables `SES_*` / `SMARTHOST_*` en `.env` | Pendiente |
-| **Gestión de secretos** | AWS Secrets Manager + IAM role (sin credenciales embebidas) | Definido |
+| **Cómputo** | EC2 Ubuntu 24.04 (validado en AWS real) | Definido y validado |
+| **Persistencia** | EBS dedicado en `/opt/misp/data` (`MISP_DATA_DIR`); datos como bind-mounts | Implementado |
+| **TLS** | ALB + ACM opcional (`enable_alb`); SG del EC2 acepta 443 solo desde SG del ALB | Implementado |
+| **Respaldos** | Snapshot EBS + `backup.sh` (`mysqldump` + files/configs/gnupg → S3) con timer systemd | Implementado |
+| **Gestión de secretos** | Secrets Manager + IAM role + `secrets-bootstrap.sh` (hidrata `.env`, chmod 600) | Implementado |
+| **IAM** | Acotable a repos ECR y secretos `prod/misp/*` (ver `terraform.tfvars.example`) | Implementado |
+| **DNS / FQDN** | Nombre real por definir; apuntar Route 53 al DNS del ALB | Pendiente (definición) |
+| **Relay SMTP** | SES o relay corporativo (`SES_*` / `SMARTHOST_*` en `.env`) | Pendiente (definición) |
 | **Build / deploy** | ECR + CodeBuild + `deploy.sh`/systemd; disparo manual → luego SSM Run Command | Propuesto |
 
 ### Notas sobre las decisiones

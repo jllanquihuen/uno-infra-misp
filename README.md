@@ -105,18 +105,17 @@ Decisiones tomadas para el ambiente AWS de unoafp:
 | **Cómputo** | EC2 Ubuntu 24.04 (Terraform validado en AWS real) | Definido y validado |
 | **Aprovisionamiento** | Terraform (`deploy/terraform/`) + `provision.sh`/`deploy.sh` | Definido y validado |
 | **Acceso a la VM** | AWS SSM Session Manager (SSH opcional) | Definido y validado |
-| **Gestión de secretos** | AWS Secrets Manager + IAM role | Definido |
-| **DNS / FQDN** | Nombre real por definir; `BASE_URL` parametrizable | Pendiente |
-| **Certificados TLS** | ALB + ACM (propuesto; hoy autofirmado en local) | Por definir |
-| **Persistencia / respaldos** | Volúmenes en EBS + `mariadb-dump` a S3 (propuesto) | Por definir |
-| **Conectividad** | Entrada por ALB; salida por NAT; pull de ECR interno | Propuesto |
-| **Relay SMTP** | SES o relay corporativo | Pendiente |
+| **Persistencia** | EBS dedicado montado en `/opt/misp/data` (`MISP_DATA_DIR`); todos los datos como bind-mounts | Implementado |
+| **Gestión de secretos** | AWS Secrets Manager + IAM role + `secrets-bootstrap.sh` (hidrata el `.env`) | Implementado |
+| **Certificados TLS** | ALB + ACM (Terraform opcional, `enable_alb`); SG del EC2 acepta 443 solo desde el SG del ALB | Implementado |
+| **Respaldos** | Snapshot EBS + `backup.sh` (`mysqldump` + files/configs/gnupg → S3) con timer systemd | Implementado |
+| **IAM** | Acotable a repos ECR y secretos concretos (`prod/misp/*`) | Implementado |
+| **DNS / FQDN** | Nombre real por definir; apuntar Route 53 al DNS del ALB | Pendiente (definición) |
+| **Relay SMTP** | SES o relay corporativo (variables `SES_*` / `SMARTHOST_*`) | Pendiente (definición) |
 | **Build / deploy** | ECR + CodeBuild + `deploy.sh`/systemd | Propuesto |
 
 ## Pendientes
 
-Piezas de la fase AWS que aún no están construidas:
-
-- **`buildspec.yml` de CodeBuild** — construir la imagen de `misp-core` en la nube (elimina el bloqueo de red intermitente de los builds locales) y publicarla en ECR.
-- **Hidratación del `.env` desde Secrets Manager** — script que, con el IAM role de la instancia, lee los secretos y genera el `.env` sin exponer valores en texto plano.
-- **Definiciones abiertas** — FQDN/DNS, estrategia final de TLS, relay SMTP y política de respaldos.
+- **`buildspec.yml` de CodeBuild** — construir la imagen de `misp-core` en la nube (elimina el bloqueo de red intermitente de los builds locales) y publicarla en ECR. Es la única pieza de automatización que falta construir.
+- **Definiciones de negocio** — FQDN/DNS definitivo, elección de relay SMTP (SES vs corporativo), y los valores concretos (ARN del certificado ACM, nombre del secreto en Secrets Manager, bucket de backups) para poblar el `terraform.tfvars` y el `.env`.
+- **Mejora futura (no bloqueante)** — migrar `misp.service` a unidades systemd generadas por Podman/Quadlet (una por servicio) para que systemd supervise cada contenedor en vez del proceso de logs.

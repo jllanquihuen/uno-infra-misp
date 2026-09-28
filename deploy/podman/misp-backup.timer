@@ -1,0 +1,16 @@
+# misp-backup.timer - schedules misp-backup.service daily.
+#
+# Enable with:  systemctl --user enable --now misp-backup.timer
+# Check with:   systemctl --user list-timers
+
+[Unit]
+Description=Daily MISP backup to S3
+
+[Timer]
+# Every day at 03:15 (server time), with a small randomized delay.
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=900
+Persistent=true
+
+[Install]
+WantedBy=timers.target

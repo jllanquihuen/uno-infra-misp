@@ -1,0 +1,25 @@
+# misp-backup.service - runs backup.sh once (triggered by misp-backup.timer).
+#
+# INSTALL (rootless, as the stack user):
+#   cp deploy/podman/misp-backup.service ~/.config/systemd/user/
+#   cp deploy/podman/misp-backup.timer   ~/.config/systemd/user/
+#   # edit WorkingDirectory + Environment below, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now misp-backup.timer
+#
+# For a ROOTFUL install, place both in /etc/systemd/system/ and drop --user.
+
+[Unit]
+Description=MISP backup to S3 (mysqldump + files/configs/gnupg)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# EDIT to your checkout path on the VM:
+WorkingDirectory=%h/uno-infra-misp
+# EDIT: target bucket (and optional prefix / region).
+Environment=BACKUP_S3_BUCKET=CHANGE_ME
+Environment=BACKUP_S3_PREFIX=misp/prod
+# Environment=AWS_REGION=us-east-1
+ExecStart=/usr/bin/env bash %h/uno-infra-misp/deploy/podman/backup.sh

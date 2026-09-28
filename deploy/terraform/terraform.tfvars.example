@@ -1,6 +1,6 @@
 # Copy to terraform.tfvars and adjust. Values here are examples.
 
-aws_region  = "us-east-1"
+aws_region   = "us-east-1"
 project_name = "uno-infra-misp"
 environment  = "prod"
 
@@ -23,13 +23,30 @@ ssh_ingress_cidrs = [] # e.g. ["10.0.0.0/8"] when enable_ssh = true
 key_name          = ""
 
 # --- Application ingress ---
-# Restrict to corporate/VPN ranges, or to the ALB/VPC CIDR if fronting with an ALB.
+# Two modes:
+#   A) Direct (simple/testing): open 443 to specific CIDRs, no ALB.
+#   B) ALB + ACM (production): set enable_alb=true below; then the instance SG
+#      accepts 443 ONLY from the ALB SG and allowed_https_cidrs can be [].
 allowed_https_cidrs = ["10.0.0.0/8"]
 enable_http         = false
 
-# --- IAM scoping (tighten in production) ---
-# ecr_repository_arns  = ["arn:aws:ecr:us-east-1:111122223333:repository/misp-core"]
-# secrets_manager_arns = ["arn:aws:secretsmanager:us-east-1:111122223333:secret:misp/*"]
+# --- ALB + TLS (production pattern) ---
+# enable_alb          = true
+# acm_certificate_arn = "arn:aws:acm:us-east-1:111122223333:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# alb_subnet_ids      = ["subnet-aaaa1111", "subnet-bbbb2222"] # >=2 AZs, public for internet-facing
+# alb_internal        = false
+# alb_ingress_cidrs   = ["10.0.0.0/8"]   # who can reach the ALB on 443
+# Alternatively, reference an EXISTING ALB SG instead of creating the ALB here:
+# alb_security_group_id = "sg-0123456789abcdef0"
+
+# --- IAM scoping (PRODUCTION: tighten these; defaults are ["*"] for testing) ---
+# ecr_repository_arns = [
+#   "arn:aws:ecr:us-east-1:111122223333:repository/uno-infra-misp/misp-core",
+#   "arn:aws:ecr:us-east-1:111122223333:repository/uno-infra-misp/misp-modules",
+# ]
+# secrets_manager_arns = [
+#   "arn:aws:secretsmanager:us-east-1:111122223333:secret:prod/misp/*",
+# ]
 
 # --- Bootstrap ---
 repo_url    = "https://github.com/unoafp/uno-infra-misp.git"

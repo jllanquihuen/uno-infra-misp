@@ -32,3 +32,13 @@ output "ssm_start_session_command" {
   description = "Command to open an interactive shell on the instance via SSM (no SSH required)."
   value       = "aws ssm start-session --region ${var.aws_region} --target ${aws_instance.misp.id}"
 }
+
+output "alb_dns_name" {
+  description = "DNS name of the ALB (null when enable_alb = false). Point your Route53 record at this."
+  value       = var.enable_alb ? aws_lb.misp[0].dns_name : null
+}
+
+output "alb_security_group_id" {
+  description = "Security group ID of the ALB created by this module (null when enable_alb = false)."
+  value       = var.enable_alb ? aws_security_group.alb[0].id : null
+}

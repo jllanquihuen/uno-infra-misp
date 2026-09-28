@@ -6,6 +6,11 @@ locals {
   # On Nitro instances the block device surfaces as an NVMe path; user-data
   # checks for a block device before formatting so this hint is best-effort.
   data_device_hint = var.data_volume_size_gb > 0 ? "/dev/nvme1n1" : ""
+
+  # Security group of the ALB allowed to reach the instance on 443:
+  # the one this module creates (enable_alb) takes precedence, otherwise an
+  # existing SG passed via alb_security_group_id, otherwise none.
+  alb_source_sg_id = var.enable_alb ? aws_security_group.alb[0].id : var.alb_security_group_id
 }
 
 # -----------------------------------------------------------------------------
@@ -64,6 +69,20 @@ resource "aws_vpc_security_group_ingress_rule" "http" {
   from_port         = 80
   to_port           = 80
   ip_protocol       = "tcp"
+}
+
+# Preferred production path: allow 443 to the instance ONLY from the ALB's
+# security group (by reference), not from CIDRs. Uses the ALB SG created by this
+# module (when enable_alb=true) or an existing one passed via alb_security_group_id.
+resource "aws_vpc_security_group_ingress_rule" "https_from_alb" {
+  count = local.alb_source_sg_id != "" ? 1 : 0
+
+  security_group_id            = aws_security_group.misp.id
+  description                  = "MISP HTTPS from ALB"
+  referenced_security_group_id = local.alb_source_sg_id
+  from_port                    = 443
+  to_port                      = 443
+  ip_protocol                  = "tcp"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ssh" {

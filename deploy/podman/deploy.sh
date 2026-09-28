@@ -58,12 +58,20 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 
-# --- Volume directories with correct ownership ------------------------------  [#3]
-# MISP core bind-mounts these host dirs and needs to chown/chmod inside them
-# (www-data, uid 33 in the image). On a native Linux fs this just works; we make
-# sure the dirs exist so the first run doesn't fail on a missing path.
-log "Ensuring bind-mount directories exist..."
-mkdir -p configs logs files ssl gnupg
+# --- Persistent data directory tree -----------------------------------------  [#3]
+# All MISP persistent data lives under MISP_DATA_DIR (bind-mounts in the compose).
+# On AWS this is the dedicated EBS volume mounted at /opt/misp/data, so the data
+# survives an EC2 replacement and can be snapshotted/backed up as a unit.
+# Locally, MISP_DATA_DIR defaults to "." (the repo dir) to keep dev behaviour.
+#
+# MISP core bind-mounts these host dirs and does its own chown/chmod on first
+# boot (www-data, uid 33 in the image). We only ensure the tree exists.
+MISP_DATA_DIR="$(grep -E '^MISP_DATA_DIR=' .env 2>/dev/null | tail -n1 | cut -d= -f2-)"
+export MISP_DATA_DIR="${MISP_DATA_DIR:-.}"
+log "Ensuring data directory tree exists under: ${MISP_DATA_DIR}"
+for d in mysql redis configs logs files ssl gnupg; do
+    mkdir -p "${MISP_DATA_DIR}/${d}"
+done
 # The container runs its own chown/chmod on first boot; nothing else needed on ext4/xfs.
 
 # --- Validate compose config ------------------------------------------------

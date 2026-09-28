@@ -34,6 +34,10 @@ if [ -n "$${DATA_DEVICE_HINT}" ] && [ -b "$${DATA_DEVICE_HINT}" ]; then
   mount -a || true
 fi
 
+# Always ensure the data directory exists (even if no separate volume: it will
+# then live on the root disk, but the path stays consistent for the deploy).
+mkdir -p /opt/misp/data
+
 # --- Clone the repo so provision.sh/deploy.sh are available -----------------
 mkdir -p /opt/misp
 if [ ! -d "$${CLONE_DIR}/.git" ]; then
@@ -41,15 +45,24 @@ if [ ! -d "$${CLONE_DIR}/.git" ]; then
 fi
 chmod +x "$${CLONE_DIR}"/deploy/podman/*.sh || true
 
+# --- Point the deploy at the data volume ------------------------------------
+# The stack reads MISP_DATA_DIR from .env; we drop a persistent marker so an
+# operator (or SSM automation) can seed .env with the right data path. This keeps
+# ALL persistent data (MariaDB, files, configs, gnupg, ...) on the data EBS
+# volume mounted at /opt/misp/data.
+echo "MISP_DATA_DIR=/opt/misp/data" > /opt/misp/misp-data-dir.env
+
 # --- Leave a hint for the operator ------------------------------------------
 cat > /etc/motd <<'MOTD'
 ============================================================
  MISP host (isolated). Repo cloned at /opt/misp/uno-infra-misp
  Next steps (run as a normal user with sudo / via SSM):
    cd /opt/misp/uno-infra-misp
-   sudo ./deploy/podman/provision.sh       # one-time: podman, registries, ports
-   cp template.env .env                     # then configure (or hydrate from Secrets Manager)
-   ./deploy/podman/deploy.sh                # bring up the MISP stack
+   sudo ./deploy/podman/provision.sh          # one-time: podman, registries, ports
+   cp template.env .env                        # base config
+   ./deploy/podman/secrets-bootstrap.sh        # hydrate secrets from Secrets Manager
+   echo MISP_DATA_DIR=/opt/misp/data >> .env   # persist data on the data EBS volume
+   ./deploy/podman/deploy.sh                   # bring up the MISP stack
 ============================================================
 MOTD
 
