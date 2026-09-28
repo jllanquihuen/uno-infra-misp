@@ -42,9 +42,9 @@ variable "assign_public_ip" {
 # Instance sizing
 # -----------------------------------------------------------------------------
 variable "instance_type" {
-  description = "EC2 instance type. t3.xlarge (4 vCPU / 16 GB) matches ANCI's recommended profile for MISP (16 GB RAM / 4 vCPU) and what was validated. Minimum viable is ~4 GB / 2 vCPU (ANCI minimum), but MariaDB + core + modules run tight there."
+  description = "EC2 instance type. Default t3.large (2 vCPU / 8 GB) suits a compliance-oriented MISP that syncs with a single feed (ANCI hub): low, predictable load, above ANCI's 4 GB minimum. For a heavily-fed / high-activity node use t3.xlarge (16 GB, ANCI recommended). Scaling up is a one-variable change; data lives on a separate EBS volume and survives the resize."
   type        = string
-  default     = "t3.xlarge"
+  default     = "t3.large"
 }
 
 variable "root_volume_size_gb" {

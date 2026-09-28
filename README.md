@@ -94,16 +94,37 @@ deploy/
 
 La arquitectura completa, con diagramas del alcance de `deploy.sh` y del contexto AWS, está en [`deploy/podman/deploy.md`](deploy/podman/deploy.md).
 
-> Nota de dimensionamiento: el stack se validó con holgura en 16 GB de RAM. En instancias pequeñas (p. ej. 4 GB) MISP arranca y sirve, pero el healthcheck de `misp-core` (timeout 1s) puede marcar `unhealthy` de forma intermitente por lentitud, aunque el servicio responde `HTTP 200`. Para producción se recomienda una instancia con memoria acorde (tipo `t3.xlarge`).
+## Dimensionamiento de la instancia
+
+El tamaño se elige según el patrón de uso, no según el tráfico web: en MISP el consumo de
+recursos proviene del **volumen de datos y de los feeds sincronizados**, no de los requests
+de usuarios.
+
+**Default: `t3.large` (2 vCPU / 8 GB, ~$60/mes).** Es el tamaño adecuado para el caso de uso
+previsto: un MISP orientado a **cumplimiento/auditoría** que se sincroniza con el **MISP central
+de la ANCI** (modelo centralizado hub-and-spoke) conectándose a **un único feed**. La carga es
+baja y predecible, y 8 GB dan holgura. Supera el mínimo ANCI (4 GB / 2 vCPU), por lo que es
+defendible ante auditoría.
+
+**Cuándo subir a `t3.xlarge` (4 vCPU / 16 GB, recomendado ANCI):** si la ANCI comparte un
+volumen grande de indicadores, si se habilitan múltiples feeds adicionales, o si la base de
+datos crece de forma sostenida. Escalar es cambiar `instance_type` y aplicar Terraform; **los
+datos viven en un EBS separado y sobreviven al redimensionamiento**.
+
+> Con 8 GB, el `template.env` fija `INNODB_BUFFER_POOL_SIZE=1024M` para que MariaDB no
+> compita por memoria con core/modules/redis. En un nodo de 16 GB puede subirse a `2048M`.
+>
+> Supuesto a confirmar con la ANCI (misp@anci.gob.cl): que el modelo sea solo sincronización
+> con su MISP central y no requiera habilitar feeds adicionales.
 
 ## Cumplimiento de requisitos ANCI
 
 Requisitos de la Agencia Nacional de Ciberseguridad (ANCI) para MISP vs. la configuración por defecto de este repo:
 
-| Recurso | ANCI mínimo | ANCI recomendado | Default (`t3.xlarge` + EBS) | Cumple |
+| Recurso | ANCI mínimo | ANCI recomendado | Default (`t3.large` + EBS) | Cumple |
 |---|---|---|---|---|
-| RAM | 4 GB | 16 GB | 16 GB | Recomendado |
-| vCPU | 2 | 4 | 4 | Recomendado |
+| RAM | 4 GB | 16 GB | 8 GB | Sobre el mínimo (16 GB con `t3.xlarge`) |
+| vCPU | 2 | 4 | 2 | Cumple mínimo (4 con `t3.xlarge`) |
 | Almacenamiento | 150 GB | 200 GB | 50 (root) + 150 (datos) = 200 GB | Recomendado |
 
 Otros puntos operativos que menciona la ANCI:
