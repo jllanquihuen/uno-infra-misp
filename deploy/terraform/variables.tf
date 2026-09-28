@@ -42,7 +42,7 @@ variable "assign_public_ip" {
 # Instance sizing
 # -----------------------------------------------------------------------------
 variable "instance_type" {
-  description = "EC2 instance type. MISP core + PECL + workers + MariaDB buffer pool need memory; t3.xlarge (4 vCPU / 16 GB) matches what was validated."
+  description = "EC2 instance type. t3.xlarge (4 vCPU / 16 GB) matches ANCI's recommended profile for MISP (16 GB RAM / 4 vCPU) and what was validated. Minimum viable is ~4 GB / 2 vCPU (ANCI minimum), but MariaDB + core + modules run tight there."
   type        = string
   default     = "t3.xlarge"
 }
@@ -54,9 +54,9 @@ variable "root_volume_size_gb" {
 }
 
 variable "data_volume_size_gb" {
-  description = "Size of the separate data EBS volume in GiB for MISP persistent data (MariaDB, files, gnupg). Set to 0 to disable and keep everything on the root volume."
+  description = "Size of the separate data EBS volume in GiB for MISP persistent data (MariaDB, files, gnupg). Default 150 GB so root (50) + data (150) = 200 GB, matching ANCI's recommended storage. Set to 0 to disable and keep everything on the root volume."
   type        = number
-  default     = 100
+  default     = 150
 }
 
 # -----------------------------------------------------------------------------

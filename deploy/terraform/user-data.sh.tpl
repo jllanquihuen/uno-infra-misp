@@ -21,6 +21,11 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y --no-install-recommends git ca-certificates curl unzip nvme-cli
 
+# --- Time sync (NTP) --------------------------------------------------------
+# ANCI recommends keeping the clock/timezone in sync so logs and scheduled tasks
+# stay consistent. Ubuntu ships systemd-timesyncd; ensure it is enabled.
+timedatectl set-ntp true 2>/dev/null || systemctl enable --now systemd-timesyncd 2>/dev/null || true
+
 mkdir -p /opt/misp/data
 
 # --- Optional: mount the separate data volume at /opt/misp/data -------------

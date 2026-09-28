@@ -96,6 +96,22 @@ La arquitectura completa, con diagramas del alcance de `deploy.sh` y del context
 
 > Nota de dimensionamiento: el stack se validó con holgura en 16 GB de RAM. En instancias pequeñas (p. ej. 4 GB) MISP arranca y sirve, pero el healthcheck de `misp-core` (timeout 1s) puede marcar `unhealthy` de forma intermitente por lentitud, aunque el servicio responde `HTTP 200`. Para producción se recomienda una instancia con memoria acorde (tipo `t3.xlarge`).
 
+## Cumplimiento de requisitos ANCI
+
+Requisitos de la Agencia Nacional de Ciberseguridad (ANCI) para MISP vs. la configuración por defecto de este repo:
+
+| Recurso | ANCI mínimo | ANCI recomendado | Default (`t3.xlarge` + EBS) | Cumple |
+|---|---|---|---|---|
+| RAM | 4 GB | 16 GB | 16 GB | Recomendado |
+| vCPU | 2 | 4 | 4 | Recomendado |
+| Almacenamiento | 150 GB | 200 GB | 50 (root) + 150 (datos) = 200 GB | Recomendado |
+
+Otros puntos operativos que menciona la ANCI:
+
+- **Zona horaria / NTP**: el `user-data` habilita `systemd-timesyncd` (NTP) en la VM; los contenedores usan `TZ` (UTC por defecto).
+- **Proxy de salida**: soportado vía variables `PROXY_*` en el `.env` para redes con proxy obligatorio.
+- **Ejecución privilegiada**: en lugar de correr MISP como `root` de forma nativa, aquí corre en contenedores **Podman rootless** (mismo objetivo funcional, menor superficie de ataque).
+
 ## Infraestructura objetivo (Opción A: VM aislada)
 
 Decisiones tomadas para el ambiente AWS de unoafp:

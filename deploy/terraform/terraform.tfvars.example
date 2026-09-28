@@ -12,9 +12,9 @@ subnet_id = "subnet-0123456789abcdef0"
 assign_public_ip = false
 
 # --- Sizing ---
-instance_type       = "t3.xlarge"
+instance_type       = "t3.xlarge" # 16 GB / 4 vCPU = ANCI recommended
 root_volume_size_gb = 50
-data_volume_size_gb = 100 # set 0 to keep everything on the root volume
+data_volume_size_gb = 150 # root 50 + data 150 = 200 GB (ANCI recommended). set 0 to keep all on root
 
 # --- Access ---
 # Prefer SSM (always on via IAM). Only enable SSH if you really need it.
