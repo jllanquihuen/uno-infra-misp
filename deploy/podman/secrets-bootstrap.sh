@@ -12,15 +12,21 @@
 #
 # Typical secret payload (prod/misp/app):
 #   {
+#     "ADMIN_EMAIL": "admin@your-org.cl",   # initial MISP admin (user #1) login
+#     "ADMIN_PASSWORD": "...",              # initial MISP admin password
 #     "MYSQL_PASSWORD": "...",
 #     "MYSQL_ROOT_PASSWORD": "...",
 #     "REDIS_PASSWORD": "...",
 #     "GPG_PASSPHRASE": "...",
-#     "ADMIN_PASSWORD": "...",
 #     "OIDC_CLIENT_SECRET": "...",
 #     "SMARTHOST_PASSWORD": "...",
 #     "S3_SECRET_KEY": "..."
 #   }
+#
+# ADMIN_EMAIL/ADMIN_PASSWORD only take effect on MISP's FIRST initialization
+# (empty database). Putting them here keeps the initial admin out of plaintext
+# in the repo. If omitted, MISP falls back to admin@admin.test / admin (forces a
+# password change at first login).
 #
 # Usage:
 #   ./secrets-bootstrap.sh                          # uses defaults below

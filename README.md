@@ -127,6 +127,49 @@ Los permisos de ECR y Secrets Manager son **acotables** a recursos concretos (re
 > **Docker específicamente**, el mismo `docker-compose.yml` es compatible y puede adaptarse el
 > aprovisionamiento; es un punto a confirmar con el equipo.
 
+## Usuarios y credenciales: dónde residen
+
+Conviene distinguir dos tipos de credenciales, que viven en lugares distintos:
+
+**1. Secretos de infraestructura** (passwords de servicios: `MYSQL_PASSWORD`,
+`MYSQL_ROOT_PASSWORD`, `REDIS_PASSWORD`, `GPG_PASSPHRASE`, SMTP, etc.)
+- **Fuente de verdad:** AWS Secrets Manager (cifrados).
+- **En la VM:** `secrets-bootstrap.sh` los inyecta al `.env` en el arranque (`chmod 600`), usando
+  el IAM role de la instancia. Nunca en texto plano en el repositorio.
+
+**2. Usuarios de la aplicación MISP** (admin, analistas: contraseñas y API keys)
+- Residen en la **base de datos MariaDB**, con las contraseñas **hasheadas** (lo maneja MISP).
+- La base vive en el **EBS de datos** (`/opt/misp/data/mysql`), cifrado en reposo, respaldado
+  por snapshot + `mysqldump`, y **sobrevive al reemplazo de la EC2**.
+
+### Admin inicial de MISP (user #1)
+
+El primer usuario administrador se define con estas variables del `.env`, aplicadas **solo en
+la primera inicialización** (base de datos vacía):
+
+| Variable | Descripción | Default si vacía |
+|---|---|---|
+| `ADMIN_EMAIL` | Login del admin (user #1) | `admin@admin.test` |
+| `ADMIN_PASSWORD` | Contraseña inicial | `admin` (fuerza cambio al primer login) |
+| `ADMIN_KEY` | API key del admin | autogenerada |
+| `ADMIN_ORG` | Organización #1 | `ORGNAME` |
+
+**En producción**, define `ADMIN_EMAIL` y `ADMIN_PASSWORD` dentro del secreto de Secrets Manager
+(el mismo JSON que lee `secrets-bootstrap.sh`), para que el admin inicial no quede en texto plano:
+
+```json
+{
+  "ADMIN_EMAIL": "admin@tu-organizacion.cl",
+  "ADMIN_PASSWORD": "una-contraseña-fuerte",
+  "MYSQL_PASSWORD": "...",
+  "REDIS_PASSWORD": "...",
+  "GPG_PASSPHRASE": "..."
+}
+```
+
+> Recomendación de hardening: en producción, descomentar `DISABLE_PRINTING_PLAINTEXT_CREDENTIALS=true`
+> en el `.env` para que MISP no imprima credenciales en los logs durante la inicialización.
+
 ## Dimensionamiento de la instancia
 
 El tamaño se elige según el patrón de uso, no según el tráfico web: en MISP el consumo de
