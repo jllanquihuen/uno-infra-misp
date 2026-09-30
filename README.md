@@ -94,6 +94,37 @@ deploy/
 
 La arquitectura completa, con diagramas del alcance de `deploy.sh` y del contexto AWS, está en [`deploy/podman/deploy.md`](deploy/podman/deploy.md).
 
+### GitHub Actions vs. instalación — no confundir
+
+Son dos cosas separadas:
+
+- **GitHub Actions (CI)** solo **construye imágenes Docker**, no instala MISP. Hay dos workflows
+  en `.github/workflows/`: `release-latest.yml` (push a `master` → construye y publica en GHCR)
+  y `test-build-latest.yml` (en cada PR → valida el compose y prueba el build). En el despliegue
+  por defecto usamos las **imágenes oficiales fijas de MISP (GHCR)**, así que no es necesario
+  tocarlos.
+- **La instalación/despliegue de MISP NO usa GitHub Actions.** Corre **en la propia VM** con los
+  scripts de `deploy/podman/`.
+
+### Cómo se instala (se ejecuta en la VM, no en tu equipo)
+
+El acceso a la VM es por **AWS SSM** (sin SSH). Tres niveles según cuánta automatización quieras:
+
+1. **Manual (validado).** Conéctate y corre los scripts:
+   ```bash
+   aws ssm start-session --target <instance_id>      # entrar a la VM
+   cd /opt/misp/uno-infra-misp
+   sudo ./deploy/podman/provision.sh                 # una vez: podman + ajustes
+   ./deploy/podman/secrets-bootstrap.sh              # secretos desde Secrets Manager
+   echo "MISP_DATA_DIR=/opt/misp/data" >> .env       # datos en el EBS
+   ./deploy/podman/deploy.sh                         # levanta el stack
+   ```
+2. **Remoto sin entrar a la VM:** disparar esos mismos scripts con **SSM Run Command**
+   (`aws ssm send-command`) desde tu consola local o la consola AWS.
+3. **Automático al crear la VM:** el `user-data` ya instala prerequisitos, clona el repo y monta
+   el disco; hoy **no** corre el deploy completo a propósito (la 1ª init de MISP es larga y
+   conviene tener los secretos primero). Puede extenderse para hacerlo end-to-end.
+
 ## Aprovisionamiento de la VM: qué viene instalado y con qué permisos
 
 La instancia se aprovisiona automáticamente (Terraform → `user-data` → `provision.sh`), sin
